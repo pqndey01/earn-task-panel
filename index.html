@@ -14,69 +14,87 @@ nav{position:fixed;bottom:0;left:0;right:0;background:#fff;display:flex;box-shad
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.s{font-size:12px;color:#666}
 .m{max-width:80%;padding:8px 10px;border-radius:12px;margin:5px 0;background:#fff;width:fit-content}.me{margin-left:auto;background:#e3d7fa}.m img{max-width:100%;border-radius:8px}
 .st{padding:3px 9px;border-radius:12px;font-size:12px;background:#fdf1c8}
-</style></head><body><div id="main"></div><div id="ov"></div>
+</style></head><body>
+<div id="main"><p style="padding:20px">Loading...</p></div><div id="ov"></div>
+<script>
+addEventListener("error",e=>{document.body.insertAdjacentHTML("afterbegin","<p style='background:#fee;color:#b00;padding:10px;font-size:13px'>Error: "+(e.message||"load nahi hua")+"</p>")});
+setTimeout(()=>{if(!window.__ok)document.body.insertAdjacentHTML("afterbegin","<p style='background:#fee;color:#b00;padding:10px;font-size:13px'>Page load nahi ho paya. Internet check karein aur refresh karein.</p>")},8000);
+</script>
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import{getFirestore,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,collection,query,where,orderBy,onSnapshot,serverTimestamp,increment,writeBatch}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/* ====== FIREBASE KEY (aapki di hui) ====== */
+/* ====== FIREBASE KEY ====== */
 const cfg={apiKey:"AIzaSyBsQQISWytoT-T-U77CrNhfcwv85MBSqMc",authDomain:"earn-task-panel-4f2a.firebaseapp.com",projectId:"earn-task-panel-4f2a",storageBucket:"earn-task-panel-4f2a.firebasestorage.app",messagingSenderId:"708465175257",appId:"1:708465175257:web:67fca7a30ca9680694ecc8"};
-const ADMIN="vovZJHM38mX6wNpK7P94A0b1bn52"; /* control panel ka UID (firestore.rules me bhi same hai) */
+const ADMIN="vovZJHM38mX6wNpK7P94A0b1bn52";
 const SITE="Earn Task Panel";
 const auth=getAuth(initializeApp(cfg)),db=getFirestore(auth.app);
 const $=s=>document.querySelector(s),v=i=>$("#"+i).value.trim(),col=n=>collection(db,n);
+window.$=$;
 const E=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money=n=>"₹"+Number(n||0).toFixed(2),url=u=>/^https?:\/\//i.test(u)?E(u):"#";
 const D={apps:[],leads:[],ag:[],tr:[],cfg:{},users:[],wd:[],chats:[]};
 const CATS=["Saving Account","Demat Account","Credit Card","Mutual Fund","Loan","Insurance","Other"],ST=["Lead Added","In Progress","Success","Rejected"];
-let U=null,me=null,tab="home",cat="All",mode="login",subs=[],cu=null;
-const isA=()=>U&&U.uid===ADMIN,A=window.A={};
+let U=null,me=null,tab="home",cat="All",mode="login",subs=[],cu=null,uq="";
+const A=window.A={},isA=()=>!!U&&U.uid===ADMIN;
 const sorted=a=>a.sort((x,y)=>(y.createdAt?.seconds??y.ts?.seconds??9e9)-(x.createdAt?.seconds??x.ts?.seconds??9e9));
-const listen=(q,k)=>subs.push(onSnapshot(q,s=>{D[k]=sorted(s.docs.map(d=>({id:d.id,...d.data()})));R()}));
+const listen=(q,k)=>subs.push(onSnapshot(q,s=>{D[k]=sorted(s.docs.map(d=>({id:d.id,...d.data()})));R()},e=>console.error(k,e)));
 const ov=h=>{$("#ov").innerHTML=h;$("#ov").style.display="block"};
 A.back=()=>{cu&&cu();cu=null;$("#ov").style.display="none"};
-const bankT=b=>b?[b.upi,b.holder,b.ac,b.ifsc].filter(Boolean).map(E).join(" | "):"add nahi kiya";
+const bankT=b=>b?[b.upi,b.holder,b.ac,b.ifsc].filter(Boolean).map(x=>E(x)).join(" | "):"add nahi kiya";
 
-onAuthStateChanged(auth,u=>{subs.forEach(f=>f());subs=[];A.back();U=u;me=null;D.leads=[];
- if(!u)return R();tab=isA()?"users":"home";
+onAuthStateChanged(auth,u=>{subs.forEach(f=>f());subs=[];A.back();U=u;me=null;D.leads=[];D.wd=[];
+ if(!u)return R();
+ tab=isA()?"users":"home";
  listen(col("apps"),"apps");listen(col("agents"),"ag");listen(col("trainings"),"tr");
- subs.push(onSnapshot(doc(db,"config","main"),s=>{D.cfg=s.data()||{};R()}));
- if(isA()){["users","leads","withdrawals","chats"].forEach(k=>listen(col(k),k=="withdrawals"?"wd":k))}
- else{subs.push(onSnapshot(doc(db,"users",u.uid),s=>{me=s.data();R()}));listen(query(col("leads"),where("uid","==",u.uid)),"leads");listen(query(col("withdrawals"),where("uid","==",u.uid)),"wd")}
+ subs.push(onSnapshot(doc(db,"config","main"),s=>{D.cfg=s.data()||{};R()},e=>console.error(e)));
+ if(isA()){listen(col("users"),"users");listen(col("leads"),"leads");listen(col("withdrawals"),"wd");listen(col("chats"),"chats")}
+ else{
+  subs.push(onSnapshot(doc(db,"users",u.uid),s=>{me=s.exists()?s.data():null;R();
+   if(!s.exists())setTimeout(()=>{if(!me&&U&&!isA()){alert("Ye account available nahi hai.");signOut(auth)}},6000)},e=>console.error(e)));
+  listen(query(col("leads"),where("uid","==",u.uid)),"leads");
+  listen(query(col("withdrawals"),where("uid","==",u.uid)),"wd");
+ }
 });
-function R(){const m=$("#main");if(!U)return m.innerHTML=authV();if(!isA()&&!me)return m.innerHTML="<p class=c>Loading...</p>";m.innerHTML=isA()?adminV():userV()}
+function R(){window.__ok=1;const m=$("#main");
+ if(!U){m.innerHTML=authV();return}
+ if(!isA()&&!me){m.innerHTML="<p style='padding:20px'>Loading...</p>";return}
+ m.innerHTML=isA()?adminV():userV()}
 
 /* ---------- LOGIN / REGISTER ---------- */
 const authV=()=>mode=="login"?`<div class=c style="margin-top:40px"><h2 style="color:#6c3fc5">${SITE}</h2><p class=s>Login karein</p><input id=i placeholder="Username ya Email" autocapitalize=off><input id=p type=password placeholder="Password"><button style=width:100% onclick=A.login()>Login</button><p class=s style="margin-top:12px" onclick=A.forgot()><u>Password bhool gaye?</u></p></div><div class=c style=text-align:center>Naya account? <button class=g onclick="A.mode('reg')">Register</button></div>`
-:`<div class=c><h2 style="color:#6c3fc5">Register</h2><input id=m type=tel maxlength=10 placeholder="Mobile number"><input id=n placeholder="Poora naam"><input id=un placeholder="Username banayein" autocapitalize=off><input id=em type=email placeholder="Email (password reset ke liye)"><input id=pw type=password placeholder="Password (6+ character)"><label><input id=rcb type=checkbox style=width:auto onchange="$('#rc').style.display=this.checked?'block':'none'"> Mere paas invite code hai</label><input id=rc placeholder="Invite code" style=display:none><button style=width:100% onclick=A.reg()>Register</button><p class=s style="margin-top:8px">Reset email spam folder me bhi check karein.</p></div><div class=c style=text-align:center>Account hai? <button class=g onclick="A.mode('login')">Login</button></div>`;
-window.$=$;A.mode=m=>{mode=m;R()};
+:`<div class=c><h2 style="color:#6c3fc5">Register</h2><input id=m type=tel maxlength=10 placeholder="Mobile number"><input id=n placeholder="Poora naam"><input id=un placeholder="Username banayein" autocapitalize=off><input id=em type=email placeholder="Email (password reset ke liye)"><input id=pw type=password placeholder="Password (6+ character)"><label><input id=rcb type=checkbox style=width:auto onchange="document.querySelector('#rc').style.display=this.checked?'block':'none'"> Mere paas invite code hai</label><input id=rc placeholder="Invite code" style=display:none><button style=width:100% onclick=A.reg()>Register</button><p class=s style="margin-top:8px">Reset email spam folder me bhi check karein.</p></div><div class=c style=text-align:center>Account hai? <button class=g onclick="A.mode('login')">Login</button></div>`;
+A.mode=m=>{mode=m;R()};
 const mail=async i=>{i=i.trim().toLowerCase();if(i.includes("@"))return i;const s=await getDoc(doc(db,"usernames",i));if(!s.exists())throw 0;return s.data().email};
-A.login=async()=>{try{await signInWithEmailAndPassword(auth,await mail(v("i")),$("#p").value)}catch{alert("Username/email ya password galat hai")}};
-A.forgot=async()=>{const i=(prompt("Apna username ya email daalein")||"").trim();if(!i)return;try{await sendPasswordResetEmail(auth,await mail(i));alert("Reset link email par bhej diya gaya. Spam folder bhi check karein.")}catch{alert("Reset link nahi bheja ja saka. Username/email check karein.")}};
+A.login=async()=>{try{await signInWithEmailAndPassword(auth,await mail(v("i")),$("#p").value)}catch(e){alert("Username/email ya password galat hai")}};
+A.forgot=async()=>{const i=(prompt("Apna username ya email daalein")||"").trim();if(!i)return;try{await sendPasswordResetEmail(auth,await mail(i));alert("Reset link email par bhej diya gaya. Spam folder bhi check karein.")}catch(e){alert("Reset link nahi bheja ja saka. Username/email check karein.")}};
 A.reg=async()=>{const un=v("un").toLowerCase(),em=v("em").toLowerCase(),pw=$("#pw").value,n=v("n"),m=v("m"),rc=$("#rcb").checked?v("rc"):"";
  if(!/^\d{10}$/.test(m))return alert("10 digit mobile number daalein");
  if(!n||!/^[a-z0-9_.]{3,20}$/.test(un))return alert("Username 3-20 characters ka ho (a-z, 0-9, _ .)");
  if(!em.includes("@")||pw.length<6)return alert("Sahi email aur 6+ character password daalein");
- try{if((await getDoc(doc(db,"usernames",un))).exists())return alert("Ye username pehle se liya hua hai, dusra username daalein");
- const c=await createUserWithEmailAndPassword(auth,em,pw),id=c.user.uid,b=writeBatch(db);
- b.set(doc(db,"usernames",un),{uid:id,email:em});
- b.set(doc(db,"users",id),{name:n,mobile:m,username:un,email:em,balance:0,verified:false,refCode:String(Math.floor(1e7+Math.random()*9e7)),refBy:rc,commissionPct:10,createdAt:serverTimestamp()});await b.commit()}
- catch(e){alert(e.code=="auth/email-already-in-use"?"Ye email pehle se registered hai":"Error: "+e.message)}};
+ try{
+  if((await getDoc(doc(db,"usernames",un))).exists())return alert("Ye username pehle se liya hua hai, dusra username daalein");
+  const c=await createUserWithEmailAndPassword(auth,em,pw),id=c.user.uid,b=writeBatch(db);
+  b.set(doc(db,"usernames",un),{uid:id,email:em});
+  b.set(doc(db,"users",id),{name:n,mobile:m,username:un,email:em,balance:0,verified:false,refCode:String(Math.floor(1e7+Math.random()*9e7)),refBy:rc,commissionPct:10,createdAt:serverTimestamp()});
+  await b.commit();
+ }catch(e){alert(e.code=="auth/email-already-in-use"?"Ye email pehle se registered hai":"Error: "+e.message)}};
 A.out=()=>signOut(auth);
 
 /* ---------- USER SIDE ---------- */
 const TABS=[["home","Home"],["leads","Leads"],["terms","Terms"],["train","Training"]];
 A.tab=t=>{tab=t;R()};A.cat=c=>{cat=c;R()};
 function userV(){let b="";
- if(tab=="home")b=`<div class=chips>${["All",...CATS].map(c=>`<span class="${c==cat?"on":""}" onclick="A.cat('${c}')">${c}</span>`).join("")}</div>`+(D.apps.filter(a=>cat=="All"||a.category==cat).map(a=>`<div class=c><div class=row>${a.icon?`<img src="${url(a.icon)}" width=48 height=48 style=border-radius:10px>`:""}<div style=flex:1><b>${E(a.title)}</b><div class=s>${E(a.category)}</div></div><div class=amt>₹${E(a.reward)}</div></div><div class=row style=margin-top:10px><button class=gr style=flex:1 onclick="A.go('${a.id}')">Register</button><button class=g onclick="A.tc('${a.id}')">View more</button></div><div id="tc${a.id}" class=s style="display:none;white-space:pre-wrap;margin-top:8px">${E(a.terms||"Terms abhi add nahi hui")}</div></div>`).join("")||"<p class=c>Is category me abhi koi app nahi hai</p>");
- if(tab=="leads"){const n=s=>D.leads.filter(l=>l.status==s).length;b=`<div class="c row" style=justify-content:space-around;text-align:center><div><b>${D.leads.length}</b><div class=s>Total</div></div><div><b>${n("In Progress")}</b><div class=s>In Progress</div></div><div><b>${n("Success")}</b><div class=s>Success</div></div><div><b>${n("Rejected")}</b><div class=s>Rejected</div></div></div>`+(D.leads.map(l=>`<div class=c><div class=row><b style=flex:1>${E(l.appTitle)}</b><span class=st>${E(l.status)}</span></div><div class=s>Expected: ${money(l.reward)}</div></div>`).join("")||"<p class=c>Abhi koi lead nahi. Home se app Register karein.</p>")}
+ if(tab=="home")b=`<div class="c bal"><div class=row><div style=flex:1><div class=s style=color:#ddd>Hi, ${E(me.name)}</div><h2>${money(me.balance)}</h2></div><button onclick=A.wd() style="background:#fff;color:#6c3fc5">Withdraw</button></div></div><div class=chips>${["All",...CATS].map(c=>`<span class="${c==cat?"on":""}" onclick="A.cat('${c}')">${c}</span>`).join("")}</div>`+(D.apps.filter(a=>cat=="All"||a.category==cat).map(a=>`<div class=c><div class=row>${a.icon?`<img src="${url(a.icon)}" width=48 height=48 style=border-radius:10px>`:""}<div style=flex:1><b>${E(a.title)}</b><div class=s>${E(a.category)}</div></div><div class=amt>₹${E(a.reward)}</div></div><div class=row style=margin-top:10px><button class=gr style=flex:1 onclick="A.go('${a.id}')">Register</button><button class=g onclick="A.tc('${a.id}')">View more</button></div><div id="tc${a.id}" class=s style="display:none;white-space:pre-wrap;margin-top:8px">${E(a.terms||"Terms abhi add nahi hui")}</div></div>`).join("")||"<p class=c>Is category me abhi koi app nahi hai</p>");
+ if(tab=="leads"){const n=s=>D.leads.filter(l=>l.status==s).length;
+  b=`<div class="c row" style=justify-content:space-around;text-align:center><div><b>${D.leads.length}</b><div class=s>Total</div></div><div><b>${n("In Progress")}</b><div class=s>In Progress</div></div><div><b>${n("Success")}</b><div class=s>Success</div></div><div><b>${n("Rejected")}</b><div class=s>Rejected</div></div></div>`+(D.leads.map(l=>`<div class=c><div class=row><b style=flex:1>${E(l.appTitle)}</b><span class=st>${E(l.status)}</span></div><div class=s>Expected: ${money(l.reward)}</div></div>`).join("")||"<p class=c>Abhi koi lead nahi. Home se app Register karein.</p>")}
  if(tab=="terms")b=`<div class=c style=white-space:pre-wrap>${E(D.cfg.terms||"Terms & Conditions jald add hongi.")}</div>`;
  if(tab=="train")b=D.tr.map(t=>`<div class=c><b>${E(t.title)}</b><p><a class=b href="${url(t.url)}" target=_blank rel=noopener style=display:inline-block;text-decoration:none;margin-top:8px>▶ Video dekhein</a></p></div>`).join("")||"<p class=c>Training videos jald aayengi</p>";
  return`<div class=top><button class=g onclick=A.prof()>☰</button><button class=g onclick=A.chat()>🎧</button><b>${SITE}</b><span class=amt style=font-size:14px>${money(me.balance)}</span></div>${b}<nav>${TABS.map(([k,n])=>`<a class="${k==tab?"on":""}" onclick="A.tab('${k}')">${n}</a>`).join("")}</nav>`}
 A.tc=id=>{const e=$("#tc"+id);e.style.display=e.style.display=="none"?"block":"none"};
-A.go=async id=>{const a=D.apps.find(x=>x.id==id);if(!/^https?:\/\//i.test(a.link))return;window.open(a.link,"_blank","noopener");
- try{await setDoc(doc(db,"leads",U.uid+"_"+id),{uid:U.uid,username:me.username,mobile:me.mobile,appId:id,appTitle:a.title,reward:a.reward,status:"Lead Added",createdAt:serverTimestamp()})}catch{}};
+A.go=async id=>{const a=D.apps.find(x=>x.id==id);if(!a||!/^https?:\/\//i.test(a.link))return;window.open(a.link,"_blank","noopener");
+ try{await setDoc(doc(db,"leads",U.uid+"_"+id),{uid:U.uid,username:me.username,mobile:me.mobile,appId:id,appTitle:a.title,reward:a.reward,status:"Lead Added",createdAt:serverTimestamp()})}catch(e){}};
 A.prof=()=>{const b=me.bank||{};ov(`<div class=top><button class=g onclick=A.back()>←</button><b>Meri Profile</b><span style=width:40px></span></div>
 <div class="c bal"><div class=s style=color:#ddd>Balance</div><h2>${money(me.balance)}</h2><button onclick=A.wd() style="background:#fff;color:#6c3fc5;margin-top:8px">Withdraw</button></div>
 <div class=c><b>${E(me.name)}</b><div class=s>@${E(me.username)} · ${E(me.mobile)}<br>${E(me.email)}</div><p style=margin-top:8px>Invite code: <b>${E(me.refCode)}</b></p><div class=s>Referral commission: ${E(me.commissionPct)}%</div></div>
@@ -88,23 +106,29 @@ A.bank=async()=>{const bank={upi:v("bu"),holder:v("bh"),ac:v("ba"),ifsc:v("bi").
  await updateDoc(doc(db,"users",U.uid),{bank,verified:false});alert("Save ho gaya. Verification ke liye chat support me batayein.");A.prof()};
 A.wd=async()=>{if(!me.verified){alert("Your bank account not verified.\nChat support se verification karwayein.");return A.chat()}
  const a=Number(prompt("Kitna amount withdraw karna hai?"));if(!a||a<=0||a>me.balance)return alert("Amount sahi nahi hai ya balance kam hai");
- await addDoc(col("withdrawals"),{uid:U.uid,username:me.username,amount:a,bank:me.bank,status:"Pending",createdAt:serverTimestamp()});alert("Withdraw request bhej di gayi");A.prof()};
+ await addDoc(col("withdrawals"),{uid:U.uid,username:me.username,amount:a,bank:me.bank,status:"Pending",createdAt:serverTimestamp()});alert("Withdraw request bhej di gayi")};
 
-/* ---------- CHAT (user + panel dono) ---------- */
+/* ---------- CHAT ---------- */
 A.chat=()=>{const l=D.ag.filter(x=>x.live);ov(`<div class=top><button class=g onclick=A.back()>←</button><b>Live Support</b><span style=width:40px></span></div>`+(l.map(x=>`<div class="c row"><span>🟢 <b>${E(x.name)}</b></span><button style=margin-left:auto onclick=A.thread()>Chat karein</button></div>`).join("")||"<p class=c>Abhi koi agent live nahi hai. Thodi der baad try karein.</p>"))};
 const comp=f=>new Promise(r=>{const i=new Image();i.onload=()=>{const k=Math.min(1,800/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.6))};i.src=URL.createObjectURL(f)});
-A.thread=(id,ad)=>{id=id||U.uid;ov(`<div class=top><button class=g onclick=A.back()>←</button><b>${ad?E(D.users.find(u=>u.id==id)?.username||"Chat"):"Support Chat"}</b><span style=width:40px></span></div><div id=ms style="padding:10px 12px;min-height:65vh"></div><div class=c><div class=row><input id=mt style=flex:1;width:auto placeholder="Message likhein"><label class="b g">📎<input id=mf type=file accept="image/*" hidden></label><button onclick="A.send('${id}',${!!ad})">Send</button></div></div>`);
- cu=onSnapshot(query(collection(db,"chats",id,"messages"),orderBy("ts")),s=>{$("#ms").innerHTML=s.docs.map(d=>{const m=d.data(),mine=ad?m.from=="agent":m.from=="user";return`<div class="m ${mine?"me":""}">${m.img?.startsWith("data:image/")?`<img src="${m.img}">`:""}${E(m.text)}</div>`}).join("");$("#ov").scrollTo(0,1e6)});
- $("#mf").onchange=e=>e.target.files[0]&&A.send(id,ad,e.target.files[0])};
+A.thread=(id,ad)=>{id=id||U.uid;
+ ov(`<div class=top><button class=g onclick=A.back()>←</button><b>${ad?E((D.users.find(u=>u.id==id)||{}).username||"Chat"):"Support Chat"}</b><span style=width:40px></span></div><div id=ms style="padding:10px 12px;min-height:65vh"></div><div class=c><div class=row><input id=mt style=flex:1;width:auto placeholder="Message likhein"><label class="b g">📎<input id=mf type=file accept="image/*" hidden></label><button onclick="A.send('${id}',${!!ad})">Send</button></div></div>`);
+ cu=onSnapshot(query(collection(db,"chats",id,"messages"),orderBy("ts")),s=>{
+  $("#ms").innerHTML=s.docs.map(d=>{const m=d.data(),mine=ad?m.from=="agent":m.from=="user",im=(m.img||"").startsWith("data:image/");
+   return`<div class="m ${mine?"me":""}">${im?`<img src="${m.img}">`:""}${E(m.text)}</div>`}).join("");
+  $("#ov").scrollTo(0,1e6)},e=>console.error(e));
+ $("#mf").onchange=e=>{if(e.target.files[0])A.send(id,ad,e.target.files[0])}};
 A.send=async(id,ad,f)=>{const t=$("#mt").value.trim(),img=f?await comp(f):"";if(!t&&!img)return;$("#mt").value="";const from=ad?"agent":"user";
  await addDoc(collection(db,"chats",id,"messages"),{from,text:t,img,ts:serverTimestamp()});
- await setDoc(doc(db,"chats",id),{last:t||"📷 Photo",ts:serverTimestamp(),from,...(ad?{}:{username:me.username})},{merge:true})};
+ await setDoc(doc(db,"chats",id),Object.assign({last:t||"📷 Photo",ts:serverTimestamp(),from},ad?{}:{username:me.username}),{merge:true})};
 
-/* ---------- CONTROL PANEL (sirf aapke login par dikhta hai) ---------- */
+/* ---------- CONTROL PANEL ---------- */
 const ATABS=[["users","Users"],["apps","Apps"],["leads","Leads"],["wd","Withdraw"],["chats","Chats"],["tr","Training"],["set","Settings"]];
-const ask=(m)=>{const a=Number(prompt(m));return a||0};
+const ask=m=>Number(prompt(m))||0;
+const usersH=()=>D.users.filter(u=>(u.username+" "+u.name+" "+u.mobile+" "+u.email).toLowerCase().includes(uq)).map(u=>`<div class=c><b>${E(u.name)}</b> @${E(u.username)} ${u.verified?"✅":""}<div class=s>${E(u.mobile)} · ${E(u.email)}<br>Invite code: ${E(u.refCode)} | Referred by: ${E(u.refBy||"-")} | Commission: ${E(u.commissionPct)}%<br>Bank: ${bankT(u.bank)}</div><h3>${money(u.balance)}</h3><div class=row><button onclick="A.bal('${u.id}',1)">+ Balance</button><button class=g onclick="A.bal('${u.id}',-1)">- Balance</button><button class=gr onclick="A.ver('${u.id}',${!u.verified})">${u.verified?"Unverify":"Verify"}</button><button class=g onclick="A.pct('${u.id}')">Commission %</button><button class=g onclick="A.thread('${u.id}',1)">Chat</button><button class=r onclick="A.del('${u.id}','${E(u.username)}')">Delete</button></div></div>`).join("")||"<p class=c>Koi user nahi mila</p>";
+A.q=s=>{uq=s.toLowerCase();$("#ul").innerHTML=usersH()};
 function adminV(){let b="";
- if(tab=="users")b=D.users.map(u=>`<div class=c><b>${E(u.name)}</b> @${E(u.username)} ${u.verified?"✅":""}<div class=s>${E(u.mobile)} · ${E(u.email)}<br>Invite code: ${E(u.refCode)} | Referred by: ${E(u.refBy||"-")} | Commission: ${E(u.commissionPct)}%<br>Bank: ${bankT(u.bank)}</div><h3>${money(u.balance)}</h3><div class=row><button onclick="A.bal('${u.id}',1)">+ Balance</button><button class=g onclick="A.bal('${u.id}',-1)">- Balance</button><button class=gr onclick="A.ver('${u.id}',${!u.verified})">${u.verified?"Unverify":"Verify"}</button><button class=g onclick="A.pct('${u.id}')">Commission %</button><button class=g onclick="A.thread('${u.id}',1)">Chat</button><button class=r onclick="A.del('${u.id}','${E(u.username)}')">Delete</button></div></div>`).join("")||"<p class=c>Abhi koi user nahi</p>";
+ if(tab=="users")b=`<div style="padding:0 12px"><input placeholder="Search: naam / username / mobile / email" oninput="A.q(this.value)" value="${E(uq)}"></div><div id=ul>${usersH()}</div>`;
  if(tab=="apps")b=`<div class=c><b>Naya app / link post karein</b><input id=t placeholder="App ka naam"><input id=l placeholder="Register link (https://...)"><input id=rw type=number placeholder="Reward amount ₹"><select id=ct>${CATS.map(c=>`<option>${c}</option>`).join("")}</select><input id=ic placeholder="Icon image link (optional)"><textarea id=tm rows=4 placeholder="Terms & Conditions"></textarea><button onclick=A.addApp()>Post karein</button></div>`+D.apps.map(a=>`<div class="c row"><div style=flex:1><b>${E(a.title)}</b><div class=s>${E(a.category)} · ₹${E(a.reward)}</div></div><button class=r onclick="A.rm('apps','${a.id}')">Delete</button></div>`).join("");
  if(tab=="leads")b=D.leads.map(l=>`<div class=c><b>${E(l.appTitle)}</b> <span class=s>₹${E(l.reward)}</span><div class=s>@${E(l.username)} · ${E(l.mobile)}</div><div class=row><select onchange="A.st('${l.id}',this.value)" style=flex:1>${ST.map(s=>`<option ${s==l.status?"selected":""}>${s}</option>`).join("")}</select><button class=r onclick="A.rm('leads','${l.id}')">Delete</button></div></div>`).join("")||"<p class=c>Abhi koi lead nahi</p>";
  if(tab=="wd")b=D.wd.map(w=>`<div class=c><b>${money(w.amount)}</b> @${E(w.username)} <span class=st>${E(w.status)}</span><div class=s>${bankT(w.bank)}</div>${w.status=="Pending"?`<div class=row style=margin-top:8px><button class=gr onclick="A.pay('${w.id}','${w.uid}',${Number(w.amount)})">Paid + balance kaato</button><button class=r onclick="A.upd('withdrawals','${w.id}',{status:'Rejected'})">Reject</button></div>`:""}</div>`).join("")||"<p class=c>Koi withdraw request nahi</p>";
@@ -112,10 +136,16 @@ function adminV(){let b="";
  if(tab=="tr")b=`<div class=c><b>Training video post karein</b><input id=t placeholder="Title"><input id=l placeholder="Video link (https://...)"><button onclick=A.addTr()>Post karein</button></div>`+D.tr.map(t=>`<div class="c row"><b style=flex:1>${E(t.title)}</b><button class=r onclick="A.rm('trainings','${t.id}')">Delete</button></div>`).join("");
  if(tab=="set")b=`<div class=c><b>Terms & Conditions (Terms tab)</b><textarea id=tt rows=8>${E(D.cfg.terms||"")}</textarea><button onclick=A.terms()>Save</button></div><div class=c><b>Support agents</b><div class=row><input id=an placeholder="Agent ka naam" style=flex:1;width:auto><button onclick=A.addAg()>Add</button></div>${D.ag.map(a=>`<div class=row style=margin-top:8px><span style=flex:1>${a.live?"🟢":"⚪"} ${E(a.name)}</span><button class="${a.live?"g":"gr"}" onclick="A.upd('agents','${a.id}',{live:${!a.live}})">${a.live?"Offline":"Go Live"}</button><button class=r onclick="A.rm('agents','${a.id}')">X</button></div>`).join("")}</div>`;
  return`<div class=top><b>${SITE}</b><button class=g onclick=A.out()>Logout</button></div><div class=chips>${ATABS.map(([k,n])=>`<span class="${k==tab?"on":""}" onclick="A.tab('${k}')">${n}</span>`).join("")}</div>${b}`}
-A.upd=(c,id,d)=>updateDoc(doc(db,c,id),d);A.rm=(c,id)=>confirm("Pakka delete karein?")&&deleteDoc(doc(db,c,id));
-A.bal=(id,s)=>{const a=ask("Amount (₹)?");a&&A.upd("users",id,{balance:increment(s*a)})};
-A.ver=(id,x)=>A.upd("users",id,{verified:x});A.pct=id=>{const a=ask("Commission % kitna?");a&&A.upd("users",id,{commissionPct:a})};
+A.upd=(c,id,d)=>updateDoc(doc(db,c,id),d);
+A.rm=(c,id)=>{if(confirm("Pakka delete karein?"))deleteDoc(doc(db,c,id))};
+A.bal=(id,s)=>{const a=ask("Amount (₹)?");if(a)A.upd("users",id,{balance:increment(s*a)})};
+A.ver=(id,x)=>A.upd("users",id,{verified:x});
+A.pct=id=>{const a=ask("Commission % kitna?");if(a)A.upd("users",id,{commissionPct:a})};
 A.st=(id,s)=>A.upd("leads",id,{status:s});
 A.del=async(id,un)=>{if(!confirm("User delete karein? (Login Firebase Authentication se bhi hatana hoga)"))return;const b=writeBatch(db);b.delete(doc(db,"users",id));b.delete(doc(db,"usernames",un));await b.commit()};
 A.pay=async(id,uid,a)=>{if(!confirm("Paid mark karke balance se "+money(a)+" kaatein?"))return;const b=writeBatch(db);b.update(doc(db,"withdrawals",id),{status:"Paid"});b.update(doc(db,"users",uid),{balance:increment(-a)});await b.commit()};
-A.addApp=async()=>{if(!v("t")||!/^https?:\/\//i.test(v("l")))return alert("Naam aur sahi https link daalein");await addDoc(col("apps"),{title:
+A.addApp=async()=>{if(!v("t")||!/^https?:\/\//i.test(v("l")))return alert("Naam aur sahi https link daalein");await addDoc(col("apps"),{title:v("t"),link:v("l"),reward:Number(v("rw")||0),category:v("ct"),icon:v("ic"),terms:$("#tm").value,createdAt:serverTimestamp()})};
+A.addTr=async()=>{if(!v("t")||!/^https?:\/\//i.test(v("l")))return alert("Title aur sahi https link daalein");await addDoc(col("trainings"),{title:v("t"),url:v("l"),createdAt:serverTimestamp()})};
+A.terms=async()=>{await setDoc(doc(db,"config","main"),{terms:$("#tt").value},{merge:true});alert("Save ho gaya")};
+A.addAg=async()=>{if(v("an"))await addDoc(col("agents"),{name:v("an"),live:false,createdAt:serverTimestamp()})};
+</script></body></html>
