@@ -136,7 +136,7 @@ function render(){
  userPage();
 }
 function authPage(){
- const L=S.mode!='reg';
+ const L=(S.mode||(P.get('invite')?'reg':'login'))!='reg';
  $('app').innerHTML=`<div class="center"><div class="card"><h2 style="margin-bottom:14px">${L?'Login':'Create account'}</h2>${L?`
  <input id="li" placeholder="Gmail or mobile number"><input id="lp" type="password" placeholder="Password">
  <button class="btn full" onclick="login_()">Login</button>
@@ -144,17 +144,18 @@ function authPage(){
  <p class="mut">New here? <a class="lk" href="#" onclick="sw('reg');return false">Register</a></p>`:`
  <input id="rn" placeholder="Full name"><input id="rm" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number">
  <input id="re" type="email" placeholder="Gmail"><input id="rp" type="password" placeholder="Create password"><input id="rc" type="password" placeholder="Confirm password">
- <label class="c"><input type="checkbox" id="rchk" onchange="$('rcode').style.display=this.checked?'block':'none'"> I have a referral code</label>
- <input id="rcode" inputmode="numeric" placeholder="Referral code" style="display:none" value="${e(P.get('invite')||'')}">
+ <label class="c"><input type="checkbox" id="rchk" ${P.get('invite')?'checked':''} onchange="$('rcode').style.display=this.checked?'block':'none'"> I have a referral code</label>
+ <input id="rcode" inputmode="numeric" placeholder="Referral code" style="display:${P.get('invite')?'block':'none'}" value="${e(P.get('invite')||'')}">
  <button class="btn full" onclick="reg_()">Register</button>
  <p class="mut" style="margin-top:12px">Already have an account? <a class="lk" href="#" onclick="sw('login');return false">Login</a></p>`}</div></div>`;
 }
 
 function userPage(){
- const u=S.u,T=S.tab;let b='';
+ const u=S.u,T=S.tab;let b='';const pend=S.wds.filter(w=>w.status=='pending').reduce((a,w)=>a+w.amount,0);
  if(T=='home'){
   const ap=S.apps.filter(a=>S.cat=='all'||a.category==S.cat);
-  b=`<div class="bal"><div class="row"><div><small>Balance</small><h1>${R(u.balance)}</h1></div><button class="btn w" onclick="wd_()">Withdraw</button></div><div class="row"><small>Total earning</small><b>${R(u.earned)}</b></div></div>
+  b=`<div class="bal"><div class="row"><div><small>Balance</small><h1>${R(u.balance)}</h1></div><button class="btn w" onclick="wd_()">Withdraw</button></div><div class="row"><small>Total earning</small><b>${R(u.earned)}</b></div>${pend?`<div class="row" style="margin-top:6px"><small>Pending withdrawal (already deducted)</small><b>${R(pend)}</b></div>`:''}</div>
+  <div class="card row"><div><b>Refer & earn</b><br><small>Your code: ${u.code}</small></div><button class="btn sm" onclick="inv()">Share link</button></div>
   ${S.banners.length?`<div class="ban">${S.banners.map(x=>`<a ${x.link?`href="${e(x.link)}" target="_blank"`:''}><img src="${e(x.img)}"></a>`).join('')}</div>`:''}
   <div class="chips">${CATS.map(c=>`<button class="chip ${S.cat==c[0]?'on':''}" onclick="S_('cat','${c[0]}')">${c[1]}</button>`).join('')}</div>
   ${ap.map(a=>`<div class="card"><div class="row"><span class="earn">Earn upto <b>${R0(a.reward)}</b></span><button class="ic" style="width:32px;height:32px" onclick="info('${a.id}')">i</button></div><br>
@@ -170,32 +171,29 @@ function userPage(){
  $('app').innerHTML=`<div class="top"><button class="ic" onclick="profile()">${e(u.name[0]).toUpperCase()}</button><b>Hi, ${e(u.name.split(' ')[0])}</b><button class="ic" onclick="chat('${S.uid}','${e(u.name)}','${u.mobile}',false)">🎧</button></div><div class="wrap">${b}</div>
  <div class="nav">${[['home','Home'],['leads','My Leads'],['train','Training']].map(n=>`<button class="${T==n[0]?'on':''}" onclick="S_('tab','${n[0]}')">${n[1]}</button>`).join('')}</div>`;
 }
-const yt=u=>{const m=String(u).match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);return m?`<iframe src="https://www.youtube.com/embed/${m[1]}" allowfullscreen></iframe>`:`<a class="lk" href="${e(u)}" target="_blank">Open video</a>`};
+const yt=u=>{if(/\.(mp4|webm)(\?|$)/i.test(u))return `<video src="${e(u)}" controls style="width:100%;border-radius:12px"></video>`;const m=String(u).match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);return m?`<iframe src="https://www.youtube.com/embed/${m[1]}" allowfullscreen></iframe>`:`<a class="lk" href="${e(u)}" target="_blank">Open video</a>`};
 window.S_=(k,v)=>{S[k]=v;render()};
 
 window.info=id=>{const a=S.apps.find(x=>x.id==id);modal(`<h3>${e(a.name)}</h3><p class="mut" style="margin:6px 0">Reward ${R0(a.reward)} · Verification by ${a.verifyBy=='gmail'?'Gmail':'mobile number'}</p><p style="white-space:pre-wrap">${e(a.details||a.desc||'')}</p><h4 style="margin-top:12px">Terms & conditions</h4><p class="mut" style="white-space:pre-wrap">${e(a.terms||'-')}</p><br><button class="btn full" onclick="closeM()">Close</button>`)};
 window.share=id=>{const l=location.origin+location.pathname+`?lead=${id}&ref=${S.uid}`;modal(`<h3>Share to customer</h3><p class="mut" style="margin:6px 0 10px">Customer opens this link, confirms and gets redirected to the offer.</p><input id="sl" readonly value="${l}"><div class="row"><button class="btn s full" onclick="navigator.clipboard.writeText($('sl').value);toast('Link copied')">Copy</button><button class="btn full" onclick="navigator.share?navigator.share({url:$('sl').value}):toast('Copy the link')">Share</button></div>`)};
 
-window.profile=()=>{const u=S.u;modal(`<h3>${e(u.name)}</h3><p class="mut">${u.mobile} · ${e(u.email)}</p><p style="margin:8px 0">Referral code: <b>${u.code}</b></p><p>Payment: <span class="tag ${u.payStatus=='verified'?'verified':''}">${{none:'Not added',pending:'Under verification',verified:'Verified ✓'}[u.payStatus]}</span></p><br>
+window.inv=()=>{const l=location.origin+location.pathname+'?invite='+S.u.code;modal(`<h3>Refer & earn</h3><p class="mut" style="margin:6px 0 10px">Friend opens this link and your referral code is already filled in at registration.</p><input id="sl" readonly value="${l}"><div class="row"><button class="btn s full" onclick="navigator.clipboard.writeText($('sl').value);toast('Link copied')">Copy</button><button class="btn full" onclick="navigator.share?navigator.share({text:'Join and earn! Use my code ${S.u.code}',url:$('sl').value}):toast('Copy the link')">Share</button></div>`)};
+window.profile=()=>{const u=S.u;modal(`<h3>${e(u.name)}</h3><p class="mut">${u.mobile} · ${e(u.email)}</p><p style="margin:8px 0">Referral code: <b>${u.code}</b></p><p class="mut" style="word-break:break-all">Login UID: ${S.uid}</p><br><button class="btn s full" onclick="inv()">Invite friends (referral link)</button><p>Payment: <span class="tag ${u.payStatus=='verified'?'verified':''}">${{none:'Not added',pending:'Under verification',verified:'Verified ✓'}[u.payStatus]}</span></p><br>
  <button class="btn full" onclick="payDet()">Payment details</button><br><br>${S.admin?'<a class="btn s full" style="display:block;text-align:center;text-decoration:none" href="#admin" onclick="closeM()">Admin panel</a><br>':''}<button class="btn r full" onclick="logout_()">Logout</button>`)};
 
 /* ---- payment details ---- */
 window.payDet=()=>{
  const m=S.pm,p=S.u.pay?.[m]||{};
  const tabs=`<div class="chips">${[['bank','Bank account'],['upi','UPI'],['usdt','Crypto USDT']].map(x=>`<button class="chip ${m==x[0]?'on':''}" onclick="S.pm='${x[0]}';payDet()">${x[1]}</button>`).join('')}</div>`;
- const f={bank:`<select id="pb" onchange="ifsc()"><option value="">Select bank</option>${Object.keys(BANKS).map(k=>`<option ${p.bank==k?'selected':''}>${k}</option>`).join('')}</select>
-  <input id="pa" type="tel" inputmode="numeric" placeholder="Account number" value="${e(p.acc||'')}"><input id="pa2" type="tel" inputmode="numeric" placeholder="Confirm account number" value="${e(p.acc||'')}">
-  <input id="pi" list="ifl" placeholder="IFSC code" style="text-transform:uppercase" maxlength="11" value="${e(p.ifsc||'')}"><datalist id="ifl">${Object.values(BANKS).map(c=>`<option value="${c}0">`).join('')}</datalist>
-  <input id="pm" type="tel" inputmode="numeric" maxlength="10" placeholder="Bank linked mobile" value="${e(p.mobile||'')}"><input id="pn" placeholder="Full name as per bank account" value="${e(p.name||'')}">`,
+ const f={bank:`<input id="pn" placeholder="Account holder name (as per bank)" value="${e(p.name||'')}"><input id="pm" type="tel" inputmode="numeric" maxlength="10" placeholder="Bank linked mobile number" value="${e(p.mobile||'')}"><input id="pa" type="tel" inputmode="numeric" placeholder="Account number" value="${e(p.acc||'')}"><input id="pa2" type="tel" inputmode="numeric" placeholder="Confirm account number" value="${e(p.acc||'')}"><input id="pi" placeholder="IFSC code (e.g. SBIN0001234)" autocapitalize="characters" autocomplete="off" maxlength="11" style="text-transform:uppercase" value="${e(p.ifsc||'')}">`,
   upi:`<input id="pu" placeholder="UPI ID (name@bank)" value="${e(p.id||'')}"><input id="pn" placeholder="Name on UPI" value="${e(p.name||'')}">`,
   usdt:`<select id="pw"><option ${p.net=='TRC20'?'selected':''}>TRC20</option><option ${p.net=='BEP20'?'selected':''}>BEP20</option></select><input id="pad" placeholder="USDT wallet address" value="${e(p.addr||'')}">`}[m];
  modal(`<h3>Payment details</h3><p class="mut" style="margin:4px 0 10px">Saving or changing details needs Admin verification before you can withdraw.</p>${tabs}${f}<button class="btn full" onclick="savePay()">Save details</button>`);
 };
-window.ifsc=()=>{const c=BANKS[val('pb')];if(c)$('pi').value=c+'0'};
 window.savePay=async()=>{
  const m=S.pm;let d;
- if(m=='bank'){d={bank:val('pb'),acc:val('pa'),ifsc:val('pi').toUpperCase(),mobile:val('pm'),name:val('pn')};
-  if(!d.bank||d.acc.length<8)return toast('Select bank and enter account number');if(d.acc!=val('pa2'))return toast('Account numbers do not match');
+ if(m=='bank'){d={acc:val('pa'),ifsc:val('pi').toUpperCase().replace(/\s/g,''),mobile:val('pm'),name:val('pn')};
+  if(d.acc.length<8)return toast('Enter valid account number');if(d.acc!=val('pa2'))return toast('Account numbers do not match');
   if(!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(d.ifsc))return toast('Invalid IFSC code');if(!mob(d.mobile)||d.name.length<3)return toast('Enter linked mobile and name')}
  else if(m=='upi'){d={id:val('pu'),name:val('pn')};if(!/^[\w.\-]{2,}@[\w]{2,}$/.test(d.id)||d.name.length<3)return toast('Enter valid UPI ID and name')}
  else{d={net:val('pw'),addr:val('pad')};if(d.addr.length<26)return toast('Enter valid wallet address')}
@@ -238,10 +236,11 @@ function adminPage(){
   S.users.filter(u=>!q||(u.name+u.mobile+u.email).toLowerCase().includes(q)).map(u=>`<div class="card"><b>${e(u.name)}</b> ${u.payStatus=='verified'?'✅':''}<br><small>${u.mobile} · ${e(u.email)}<br>Invite: ${u.code} | Referred by: ${e(U(u.referredBy).name||'-')} | Commission: ${u.commission}%<br>Pay: ${e(JSON.stringify(u.pay||{}))} (${u.payStatus})</small><h2>${R(u.balance)}</h2>
   <div class="acts"><button class="btn sm" onclick="bal('${u.id}',1)">+ Balance</button><button class="btn sm s" onclick="bal('${u.id}',-1)">- Balance</button><button class="btn sm g" onclick="vfy('${u.id}')">${u.payStatus=='verified'?'Unverify':'Verify'}</button><button class="btn sm s" onclick="com('${u.id}')">Commission %</button><button class="btn sm s" onclick="chat('${u.id}','${e(u.name)}','${u.mobile}',true)">Chat</button><button class="btn sm s" onclick="S.lf='${u.id}';S_('at','leads')">Leads</button><button class="btn sm r" onclick="del('users','${u.id}')">Delete</button></div></div>`).join('');
  }else if(t=='apps'){
-  b=`<div class="card"><h4 style="margin-bottom:10px">Add offer / app</h4><input id="an" placeholder="Name"><input id="al" placeholder="Register link (https://...)"><input id="ar" type="number" placeholder="Reward amount ₹"><select id="ac">${CATS.slice(1).map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('')}</select><select id="av"><option value="mobile">Confirm customer by mobile number</option><option value="gmail">Confirm customer by Gmail</option></select><input id="ai" placeholder="Icon image link (optional)"><input id="ad" placeholder="Short description"><textarea id="at" rows="3" placeholder="Details (shown in i button)"></textarea><textarea id="atc" rows="3" placeholder="Terms & conditions"></textarea><button class="btn" onclick="addApp()">Post</button></div>`+
-  S.apps.map(a=>`<div class="card row"><div><b>${e(a.name)}</b><br><small>${a.category} · ${R0(a.reward)} · ${a.verifyBy}</small></div><button class="btn sm r" onclick="del('apps','${a.id}')">Delete</button></div>`).join('');
+  const E=S.apps.find(x=>x.id==S.ed)||{};
+  b=`<div class="card"><h4 style="margin-bottom:10px">${E.id?'Edit offer / app':'Add offer / app'}</h4><input id="an" placeholder="Name" value="${e(E.name||'')}"><input id="al" placeholder="Register link (https://...)" value="${e(E.link||'')}"><input id="ar" type="number" placeholder="Reward amount ₹" value="${E.reward??''}"><select id="ac">${CATS.slice(1).map(c=>`<option value="${c[0]}" ${E.category==c[0]?'selected':''}>${c[1]}</option>`).join('')}</select><select id="av"><option value="mobile">Confirm customer by mobile number</option><option value="gmail" ${E.verifyBy=='gmail'?'selected':''}>Confirm customer by Gmail</option></select><small>App icon ${E.icon?'(leave empty to keep current)':'(optional)'}</small><input id="ai" type="file" accept="image/*"><input id="ad" placeholder="Short description" value="${e(E.desc||'')}"><textarea id="at" rows="3" placeholder="Details (shown in i button)">${e(E.details||'')}</textarea><textarea id="atc" rows="3" placeholder="Terms & conditions">${e(E.terms||'')}</textarea><button class="btn" onclick="addApp()">${E.id?'Save changes':'Post'}</button> ${E.id?'<button class="btn s" onclick="S.ed=null;render()">Cancel</button>':''}</div>`+
+  S.apps.map(a=>`<div class="card"><div class="row"><div><b>${e(a.name)}</b><br><small>${a.category} · ${R0(a.reward)} · ${a.verifyBy}</small></div></div><div class="acts"><button class="btn sm s" onclick="S.ed='${a.id}';render();scrollTo(0,0)">Edit</button><button class="btn sm r" onclick="del('apps','${a.id}')">Delete</button></div></div>`).join('');
  }else if(t=='banners'){
-  b=`<div class="card"><h4 style="margin-bottom:10px">Add banner</h4><input id="bi" placeholder="Banner image link"><input id="bl" placeholder="Click link (optional)"><button class="btn" onclick="addB()">Post banner</button></div>`+
+  b=`<div class="card"><h4 style="margin-bottom:10px">Add banner</h4><small>Banner image</small><input id="bi" type="file" accept="image/*"><input id="bl" placeholder="Click link (optional)"><button class="btn" onclick="addB()">Post banner</button></div>`+
   S.banners.map(x=>`<div class="card"><img src="${e(x.img)}" style="width:100%;border-radius:10px"><br><br><button class="btn sm r" onclick="del('banners','${x.id}')">Delete</button></div>`).join('');
  }else if(t=='leads'){
   const L=S.leads.filter(l=>!S.lf||l.userId==S.lf).sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0));
@@ -256,13 +255,14 @@ function adminPage(){
  }
  $('app').innerHTML=`<div class="top"><b>Admin panel</b><a class="btn sm s" style="text-decoration:none" href="#" onclick="location.hash='';return false">User view</a><button class="btn sm s" onclick="logout_()">Logout</button></div><div class="abar">${AT.map(a=>`<button class="chip ${t==a?'on':''}" onclick="S_('at','${a}')">${a[0].toUpperCase()+a.slice(1)}</button>`).join('')}</div><div class="wrap">${b}</div>`;
 }
+const img2data=(f,w,q)=>new Promise((ok,no)=>{const r=new FileReader();r.onerror=no;r.onload=()=>{const i=new Image();i.onerror=no;i.onload=()=>{const k=Math.min(1,w/i.width),c=document.createElement('canvas'),x=c.getContext('2d');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',q))};i.src=r.result};r.readAsDataURL(f)});
 const T_=async(f)=>{try{await f()}catch(x){toast(x.message)}};
 window.bal=(id,s)=>{const a=Number(prompt('Amount ₹'));if(a>0)T_(()=>updateDoc(doc(db,'users',id),{balance:increment(s*a)}))};
 window.vfy=id=>{const u=S.users.find(x=>x.id==id);T_(()=>updateDoc(doc(db,'users',id),{payStatus:u.payStatus=='verified'?'pending':'verified'}))};
 window.com=id=>{const c=Number(prompt('Commission % for this user'));if(c>=0&&c<=100)T_(()=>updateDoc(doc(db,'users',id),{commission:c}))};
 window.del=(c,id)=>{if(confirm('Delete? (User delete removes the profile only; remove login from Firebase Authentication too)'))T_(()=>deleteDoc(doc(db,c,id)))};
-window.addApp=()=>{const d={name:val('an'),link:val('al'),reward:Number(val('ar')),category:val('ac'),verifyBy:val('av'),icon:val('ai'),desc:val('ad'),details:val('at'),terms:val('atc')};if(!d.name||!/^https?:\/\//.test(d.link)||!(d.reward>=0))return toast('Name, valid link and reward required');T_(async()=>{await addDoc(collection(db,'apps'),d);toast('Posted');S.at='apps';render()})};
-window.addB=()=>{if(!/^https?:\/\//.test(val('bi')))return toast('Enter image link');T_(async()=>{await addDoc(collection(db,'banners'),{img:val('bi'),link:val('bl'),t:Date.now()});toast('Banner posted')})};
+window.addApp=async()=>{const f=$('ai').files[0];let icon='';if(f)try{icon=await img2data(f,240,.8)}catch(x){return toast('Image read failed')}const E0=S.apps.find(x=>x.id==S.ed);if(!f&&E0)icon=E0.icon||'';const d={name:val('an'),link:val('al'),reward:Number(val('ar')),category:val('ac'),verifyBy:val('av'),icon,desc:val('ad'),details:val('at'),terms:val('atc')};if(!d.name||!/^https?:\/\//.test(d.link)||!(d.reward>=0))return toast('Name, valid link and reward required');T_(async()=>{if(S.ed){await updateDoc(doc(db,'apps',S.ed),d);S.ed=null;toast('Updated')}else{await addDoc(collection(db,'apps'),d);toast('Posted')}S.at='apps';render()})};
+window.addB=async()=>{const f=$('bi').files[0];if(!f)return toast('Select a banner image');let img;try{img=await img2data(f,1000,.75)}catch(x){return toast('Image read failed')}T_(async()=>{await addDoc(collection(db,'banners'),{img,link:val('bl'),t:Date.now()});toast('Banner posted');render()})};
 window.addV=()=>{if(!val('vt')||!val('vu'))return toast('Title and link required');T_(async()=>{await addDoc(collection(db,'videos'),{title:val('vt'),url:val('vu'),t:Date.now()});toast('Video posted')})};
 window.ls=(id,s)=>T_(()=>updateDoc(doc(db,'leads',id),{status:s}));
 window.pay=id=>{const l=S.leads.find(x=>x.id==id);if(l.paid)return toast('Already paid');if(!confirm('Release '+R0(l.reward)+' to user wallet?'))return;
