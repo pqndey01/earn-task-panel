@@ -79,9 +79,9 @@ const listen=(q,fn)=>subs.push(onSnapshot(q,s=>{fn(s.docs.map(d=>({id:d.id,...d.
 onAuthStateChanged(auth,async u=>{
  subs.forEach(f=>f());subs=[];
  if(!u){S.u=null;S.uid=null;return render()}
- S.uid=u.uid;S.admin=u.uid==ADMIN_UID;
+ S.uid=u.uid;S.admin=u.uid==ADMIN_UID;S.u=null;render();
  listen(collection(db,'apps'),a=>S.apps=a);listen(collection(db,'banners'),a=>S.banners=a);listen(collection(db,'videos'),a=>S.vids=a);
- subs.push(onSnapshot(doc(db,'users',u.uid),s=>{S.u=s.exists()?{id:s.id,...s.data()}:null;if(!s.exists()&&S.admin)setDoc(doc(db,'users',u.uid),{name:(u.email||'Admin').split('@')[0],mobile:'',email:u.email||'',code:rnd(),referredBy:null,commission:10,balance:0,earned:0,payStatus:'none',pay:{},createdAt:serverTimestamp()}).catch(x=>toast(x.message));draw()}));
+ subs.push(onSnapshot(doc(db,'users',u.uid),s=>{const had=!!S.u;S.u=s.exists()?{id:s.id,...s.data()}:null;if(!s.exists()&&S.admin)setDoc(doc(db,'users',u.uid),{name:(u.email||'Admin').split('@')[0],mobile:'',email:u.email||'',code:rnd(),referredBy:null,commission:10,balance:0,earned:0,payStatus:'none',pay:{},createdAt:serverTimestamp()}).catch(x=>toast(x.message));(!had&&S.u)?render():draw()}));
  if(S.admin){listen(collection(db,'users'),a=>S.users=a);listen(collection(db,'leads'),a=>S.leads=a);listen(collection(db,'withdrawals'),a=>S.wds=a);listen(collection(db,'chats'),a=>S.chats=a)}
  else{listen(query(collection(db,'leads'),where('userId','==',u.uid)),a=>S.leads=a);listen(query(collection(db,'withdrawals'),where('userId','==',u.uid)),a=>S.wds=a)}
 });
@@ -102,7 +102,14 @@ window.reg_=async()=>{
  }catch(x){toast(x.code=='auth/email-already-in-use'?'Gmail already registered':x.message)}
 };
 async function emailOf(id){id=id.trim().toLowerCase();if(/^\d{10}$/.test(id)){const s=await getDoc(doc(db,'lookup','p_'+id));return s.exists()?s.data().email:null}return id}
-window.login_=async()=>{try{const em=await emailOf(val('li'));if(!em)return toast('Mobile not registered');await signInWithEmailAndPassword(auth,em,val('lp'))}catch(x){toast('Wrong Gmail/mobile or password')}};
+let busy=false;
+window.login_=async()=>{if(busy)return;const b=document.querySelector('.card .btn.full');
+ if(!val('li')||!val('lp'))return toast('Enter Gmail/mobile and password');
+ busy=true;if(b){b.disabled=true;b.textContent='Logging in...'}
+ try{const em=await emailOf(val('li'));if(!em){toast('Mobile not registered');return}await signInWithEmailAndPassword(auth,em,val('lp'))}
+ catch(x){toast({'auth/network-request-failed':'Network problem, try again','auth/too-many-requests':'Too many attempts. Wait a few minutes or reset password','auth/invalid-credential':'Wrong Gmail/mobile or password','auth/user-disabled':'Account disabled'}[x.code]||'Login failed: '+(x.code||x.message))}
+ finally{busy=false;if(b){b.disabled=false;b.textContent='Login'}}};
+document.addEventListener('keydown',ev=>{if(ev.key=='Enter'&&$('lp'))login_()});
 window.forgot_=async()=>{try{const em=await emailOf(val('li'));if(!em||!mail(em))return toast('Enter your Gmail or registered mobile above first');await sendPasswordResetEmail(auth,em);toast('Password reset link sent to '+em.replace(/(.).+(@.+)/,'$1***$2'))}catch(x){toast('Could not send reset email')}};
 window.logout_=()=>{closeM();signOut(auth)};
 window.sw=m=>{S.mode=m;render()};
